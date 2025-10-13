@@ -81,6 +81,17 @@ class GameViewModel: ObservableObject {
         }
     }
     
+    // FOR DEBUGGING
+    func dealMoonHand() {
+        players[0].hand = players[0].hand.map { card in
+            if card.rank == .queen && card.suit == .spades {
+                return card // keep Queen of Spades
+            } else {
+                return Card(rank: .ace, suit: card.suit) // same suit, make it Ace
+            }
+        }
+    }
+    
     // Human selects/deselects a card to pass
     func toggleCardSelection(_ card: Card) {
         if selectedCardsToPass.contains(card) {

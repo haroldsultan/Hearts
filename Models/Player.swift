@@ -21,7 +21,7 @@ struct Player {
         wonCards.append(contentsOf: cards)
     }
     
-    mutating func endRound(shootingMoon: Bool) {  // CHANGED - add parameter
+    mutating func endRound(shootingMoon: Bool) {
         lastRoundScore = roundScore
         shotTheMoon = shootingMoon
         
