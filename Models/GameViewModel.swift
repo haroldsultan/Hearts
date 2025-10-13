@@ -192,12 +192,12 @@ class GameViewModel: ObservableObject {
         players[winner.playerIndex].wonCards.append(contentsOf: wonCards)
         
         if players[0].hand.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 self.endRound()
                 self.isProcessing = false
             }
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 self.playedCards = []
                 self.currentPlayerIndex = winner.playerIndex
                 self.isProcessing = false
@@ -257,7 +257,7 @@ class GameViewModel: ObservableObject {
     
     func playAITurn() {
         if !players[currentPlayerIndex].isHuman && !players[currentPlayerIndex].hand.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 let isFirstTrick = RuleValidator.isFirstTrick(players: self.players)
                 
                 let legalCards = RuleValidator.getLegalCards(
