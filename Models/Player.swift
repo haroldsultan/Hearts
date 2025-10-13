@@ -6,7 +6,8 @@ struct Player {
     var hand: [Card]
     var wonCards: [Card] = []
     var score: Int = 0
-    var lastRoundScore: Int = 0  // NEW - stores last round's score
+    var lastRoundScore: Int = 0
+    var shotTheMoon: Bool = false
     
     var roundScore: Int {
         wonCards.reduce(0) { $0 + $1.points }
@@ -20,22 +21,27 @@ struct Player {
         wonCards.append(contentsOf: cards)
     }
     
-    mutating func endRound() {
-        lastRoundScore = roundScore  // Save it
-        score += lastRoundScore
+    mutating func endRound(shootingMoon: Bool) {  // CHANGED - add parameter
+        lastRoundScore = roundScore
+        shotTheMoon = shootingMoon
+        
+        if shootingMoon {
+            score += 0  // Moon shooter gets 0
+        } else {
+            score += lastRoundScore
+        }
+        
         wonCards = []
     }
     
     var sortedHand: [Card] {
         hand.sorted { card1, card2 in
-            // Sort by suit first (hearts, spades, diamonds, clubs)
             if card1.suit != card2.suit {
                 let suitOrder: [Suit] = [.hearts, .spades, .diamonds, .clubs]
                 let index1 = suitOrder.firstIndex(of: card1.suit) ?? 0
                 let index2 = suitOrder.firstIndex(of: card2.suit) ?? 0
                 return index1 < index2
             }
-            // Within same suit, sort by rank value
             return card1.rank.value < card2.rank.value
         }
     }

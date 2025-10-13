@@ -9,13 +9,12 @@ struct GameView: View {
             Color.green.ignoresSafeArea()
             
             if viewModel.isGameOver {
-                // GAME OVER SCREEN
                 gameOverScreen
+            } else if viewModel.isPassing {
+                passingScreen
             } else if !viewModel.gameStarted {
-                // ROUND COMPLETE SCREEN
                 roundCompleteScreen
             } else {
-                // PLAYING SCREEN
                 playingScreen
             }
         }
@@ -74,6 +73,16 @@ struct GameView: View {
                 .font(.largeTitle)
                 .foregroundColor(.white)
             
+            // Show if someone shot the moon
+            if let moonShooter = viewModel.players.first(where: { $0.shotTheMoon }) {
+                Text("\(moonShooter.name) SHOT THE MOON! 🌙")
+                    .font(.title)
+                    .foregroundColor(.yellow)
+                    .padding()
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(10)
+            }
+            
             VStack(spacing: 10) {
                 ForEach(0..<viewModel.players.count, id: \.self) { i in
                     HStack {
@@ -81,7 +90,7 @@ struct GameView: View {
                             .foregroundColor(.white)
                             .frame(width: 80, alignment: .leading)
                         Text("This Round: +\(viewModel.players[i].lastRoundScore)")
-                            .foregroundColor(.yellow)
+                            .foregroundColor(viewModel.players[i].shotTheMoon ? .green : .yellow)
                             .frame(width: 150)
                         
                         Text("Total: \(viewModel.players[i].score)")
@@ -191,5 +200,20 @@ struct GameView: View {
             .frame(height: 200)
             .padding(.horizontal)
         }
+    }
+
+    // MARK: - Passing Screen
+    var passingScreen: some View {
+        PassingView(
+            hand: viewModel.players[0].sortedHand,
+            selectedCards: viewModel.selectedCardsToPass,
+            passDirection: viewModel.passDirection.description,
+            onCardTap: { card in
+                viewModel.toggleCardSelection(card)
+            },
+            onSubmit: {
+                viewModel.submitPass()
+            }
+        )
     }
 }

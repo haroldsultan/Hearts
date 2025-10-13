@@ -1,6 +1,26 @@
 import Foundation
 import Combine
 
+enum PassDirection: Int {
+    case left = 0
+    case across = 1
+    case right = 2
+    case none = 3
+    
+    var description: String {
+        switch self {
+        case .left: return "Left"
+        case .across: return "Across"
+        case .right: return "Right"
+        case .none: return "No Pass"
+        }
+    }
+    
+    func next() -> PassDirection {
+        return PassDirection(rawValue: (self.rawValue + 1) % 4) ?? .left
+    }
+}
+
 class GameViewModel: ObservableObject {
     @Published var players: [Player] = []
     @Published var currentPlayerIndex = 0
@@ -9,7 +29,13 @@ class GameViewModel: ObservableObject {
     @Published var gameStarted = false
     @Published var isProcessing = false
     @Published var heartsBroken = false
-    @Published var isGameOver = false  // NEW
+    @Published var isGameOver = false
+    
+    // Passing phase
+    @Published var isPassing = false
+    @Published var passDirection: PassDirection = .left
+    @Published var selectedCardsToPass: Set<Card> = []
+    private var allPassedCards: [[Card]] = [[], [], [], []]  // Cards each player is passing
     
     init() {
         players = [
@@ -37,7 +63,74 @@ class GameViewModel: ObservableObject {
         
         roundNumber += 1
         heartsBroken = false
+        selectedCardsToPass = []
+        allPassedCards = [[], [], [], []]
         
+        // Determine if we need to pass this round
+        if passDirection == .none {
+            startPlaying()
+        } else {
+            isPassing = true
+            gameStarted = false
+            
+            // AI players immediately select cards to pass
+            for i in 1..<players.count {
+                let cardsToPass = AIPassingStrategy.selectCardsToPass(hand: players[i].hand)
+                allPassedCards[i] = cardsToPass
+            }
+        }
+    }
+    
+    // Human selects/deselects a card to pass
+    func toggleCardSelection(_ card: Card) {
+        if selectedCardsToPass.contains(card) {
+            selectedCardsToPass.remove(card)
+        } else if selectedCardsToPass.count < 3 {
+            selectedCardsToPass.insert(card)
+        }
+    }
+    
+    // Human submits their 3 cards to pass
+    func submitPass() {
+        guard selectedCardsToPass.count == 3 else { return }
+        allPassedCards[0] = Array(selectedCardsToPass)
+        executePass()
+    }
+    
+    // Execute the pass between all players
+    func executePass() {
+        // Remove passed cards from each player's hand
+        for i in 0..<players.count {
+            for card in allPassedCards[i] {
+                players[i].removeCard(card)
+            }
+        }
+        
+        // Give cards to recipients based on pass direction
+        for i in 0..<players.count {
+            let recipientIndex = getPassRecipient(from: i)
+            players[recipientIndex].hand.append(contentsOf: allPassedCards[i])
+        }
+        
+        selectedCardsToPass = []
+        isPassing = false
+        startPlaying()
+    }
+    
+    func getPassRecipient(from playerIndex: Int) -> Int {
+        switch passDirection {
+        case .left:
+            return (playerIndex + 1) % 4
+        case .across:
+            return (playerIndex + 2) % 4
+        case .right:
+            return (playerIndex + 3) % 4
+        case .none:
+            return playerIndex
+        }
+    }
+    
+    func startPlaying() {
         if let startPlayer = RuleValidator.findPlayerWith2OfClubs(players: players) {
             currentPlayerIndex = startPlayer
         } else {
@@ -114,12 +207,33 @@ class GameViewModel: ObservableObject {
     }
     
     func endRound() {
+        var moonShooterIndex: Int? = nil
         for i in 0..<players.count {
-            players[i].endRound()
+            let points = players[i].wonCards.reduce(0) { $0 + $1.points }
+            if points == 26 {
+                moonShooterIndex = i
+                break
+            }
         }
-        playedCards = []
         
-        // Check for game over
+        if let shooterIndex = moonShooterIndex {
+            for i in 0..<players.count {
+                if i == shooterIndex {
+                    players[i].endRound(shootingMoon: true)
+                } else {
+                    players[i].endRound(shootingMoon: false)
+                    players[i].score += 26
+                }
+            }
+        } else {
+            for i in 0..<players.count {
+                players[i].endRound(shootingMoon: false)
+            }
+        }
+        
+        playedCards = []
+        passDirection = passDirection.next()  // Advance to next pass direction
+        
         if players.contains(where: { $0.score >= 100 }) {
             isGameOver = true
             gameStarted = false
@@ -128,7 +242,7 @@ class GameViewModel: ObservableObject {
         }
     }
     
-    func startNewGame() {  // NEW
+    func startNewGame() {
         for i in 0..<players.count {
             players[i].score = 0
             players[i].lastRoundScore = 0
@@ -137,6 +251,7 @@ class GameViewModel: ObservableObject {
         }
         roundNumber = 0
         isGameOver = false
+        passDirection = .left  // Reset pass direction
         setupGame()
     }
     

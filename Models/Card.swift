@@ -38,7 +38,7 @@ enum Rank: String, CaseIterable {
     }
 }
 
-struct Card: Identifiable, Equatable {
+struct Card: Identifiable, Equatable, Hashable {
     let id = UUID()
     let rank: Rank
     let suit: Suit
@@ -55,5 +55,10 @@ struct Card: Identifiable, Equatable {
     
     static func == (lhs: Card, rhs: Card) -> Bool {
         lhs.rank == rhs.rank && lhs.suit == rhs.suit
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(rank)
+        hasher.combine(suit)
     }
 }
