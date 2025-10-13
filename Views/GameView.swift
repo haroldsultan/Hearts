@@ -93,26 +93,32 @@ struct GameView: View {
                     GeometryReader { geometry in
                         let hand = viewModel.players[0].hand
                         let totalCards = hand.count
-                        let cardWidth: CGFloat = 75
-                        let cardHeight: CGFloat = 112
                         let spacing: CGFloat = 25
+                        let isFirstTrick = RuleValidator.isFirstTrick(players: viewModel.players)
+                        let legalCards = RuleValidator.getLegalCards(
+                            hand: hand,
+                            playedCards: viewModel.playedCards,
+                            heartsBroken: viewModel.heartsBroken,
+                            isFirstTrick: isFirstTrick
+                        )
 
                         ZStack {
                             ForEach(Array(hand.enumerated()), id: \.element.id) { index, card in
                                 let centerIndex = CGFloat(totalCards - 1) / 2
                                 let xOffset = (CGFloat(index) - centerIndex) * spacing
+                                let isLegal = legalCards.contains(card)
 
                                 Button(action: {
-                                    if viewModel.currentPlayerIndex == 0 {
+                                    if viewModel.currentPlayerIndex == 0 && isLegal {
                                         viewModel.playCard(card)
                                     }
                                 }) {
                                     CardView(card: card)
                                         .rotationEffect(.degrees(Double(index) - Double(centerIndex)) * 5)
+                                        .opacity(isLegal && viewModel.currentPlayerIndex == 0 ? 1.0 : 0.4)
                                 }
                                 .offset(x: xOffset, y: 0)
-                                .disabled(viewModel.currentPlayerIndex != 0)
-                                .opacity(viewModel.currentPlayerIndex == 0 ? 1.0 : 0.5)
+                                .disabled(viewModel.currentPlayerIndex != 0 || !isLegal)
                             }
                         }
                         .scaleEffect(0.95)

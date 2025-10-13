@@ -8,6 +8,7 @@ class GameViewModel: ObservableObject {
     @Published var roundNumber = 0
     @Published var gameStarted = false
     @Published var isProcessing = false
+    @Published var heartsBroken = false  // NEW
     
     init() {
         players = [
@@ -34,30 +35,60 @@ class GameViewModel: ObservableObject {
         players[3].hand = Array(deck[39..<52])
         
         roundNumber += 1
-        currentPlayerIndex = 0
+        heartsBroken = false  // NEW
+        
+        // Find who has 2 of clubs
+        if let startPlayer = RuleValidator.findPlayerWith2OfClubs(players: players) {
+            currentPlayerIndex = startPlayer
+        } else {
+            currentPlayerIndex = 0
+        }
+        
         gameStarted = true
+        
+        // If AI starts, trigger AI turn
+        if !players[currentPlayerIndex].isHuman {
+            playAITurn()
+        }
     }
     
     func playCard(_ card: Card) {
         guard gameStarted else { return }
-        guard !isProcessing else { return }  // ADD THIS
-        guard currentPlayerIndex == 0 || !players[currentPlayerIndex].isHuman else { return }
+        guard !isProcessing else { return }
         
-        isProcessing = true  // ADD THIS
+        let isFirstTrick = RuleValidator.isFirstTrick(players: players)
+        
+        // Check if card is legal
+        guard RuleValidator.canPlayCard(
+            card,
+            hand: players[currentPlayerIndex].hand,
+            playedCards: playedCards,
+            heartsBroken: heartsBroken,
+            isFirstTrick: isFirstTrick
+        ) else {
+            return  // Illegal move, ignore
+        }
+        
+        isProcessing = true
         
         if let index = players[currentPlayerIndex].hand.firstIndex(of: card) {
             players[currentPlayerIndex].hand.remove(at: index)
             playedCards.append((currentPlayerIndex, card))
             
+            // Check if hearts broken
+            if card.suit == .hearts {
+                heartsBroken = true
+            }
+            
             if playedCards.count == 4 {
                 completeTrick()
             } else {
                 currentPlayerIndex = (currentPlayerIndex + 1) % 4
-                isProcessing = false  // ADD THIS
+                isProcessing = false
                 playAITurn()
             }
         } else {
-            isProcessing = false  // ADD THIS in case card not found
+            isProcessing = false
         }
     }
     
@@ -95,8 +126,18 @@ class GameViewModel: ObservableObject {
     
     func playAITurn() {
         if !players[currentPlayerIndex].isHuman && !players[currentPlayerIndex].hand.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if let randomCard = self.players[self.currentPlayerIndex].hand.randomElement() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                let isFirstTrick = RuleValidator.isFirstTrick(players: self.players)
+                
+                // Get legal cards for AI
+                let legalCards = RuleValidator.getLegalCards(
+                    hand: self.players[self.currentPlayerIndex].hand,
+                    playedCards: self.playedCards,
+                    heartsBroken: self.heartsBroken,
+                    isFirstTrick: isFirstTrick
+                )
+                
+                if let randomCard = legalCards.randomElement() {
                     self.playCard(randomCard)
                 }
             }
