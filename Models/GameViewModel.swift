@@ -8,7 +8,8 @@ class GameViewModel: ObservableObject {
     @Published var roundNumber = 0
     @Published var gameStarted = false
     @Published var isProcessing = false
-    @Published var heartsBroken = false  // NEW
+    @Published var heartsBroken = false
+    @Published var isGameOver = false  // NEW
     
     init() {
         players = [
@@ -35,9 +36,8 @@ class GameViewModel: ObservableObject {
         players[3].hand = Array(deck[39..<52])
         
         roundNumber += 1
-        heartsBroken = false  // NEW
+        heartsBroken = false
         
-        // Find who has 2 of clubs
         if let startPlayer = RuleValidator.findPlayerWith2OfClubs(players: players) {
             currentPlayerIndex = startPlayer
         } else {
@@ -46,7 +46,6 @@ class GameViewModel: ObservableObject {
         
         gameStarted = true
         
-        // If AI starts, trigger AI turn
         if !players[currentPlayerIndex].isHuman {
             playAITurn()
         }
@@ -58,7 +57,6 @@ class GameViewModel: ObservableObject {
         
         let isFirstTrick = RuleValidator.isFirstTrick(players: players)
         
-        // Check if card is legal
         guard RuleValidator.canPlayCard(
             card,
             hand: players[currentPlayerIndex].hand,
@@ -66,7 +64,7 @@ class GameViewModel: ObservableObject {
             heartsBroken: heartsBroken,
             isFirstTrick: isFirstTrick
         ) else {
-            return  // Illegal move, ignore
+            return
         }
         
         isProcessing = true
@@ -75,7 +73,6 @@ class GameViewModel: ObservableObject {
             players[currentPlayerIndex].hand.remove(at: index)
             playedCards.append((currentPlayerIndex, card))
             
-            // Check if hearts broken
             if card.suit == .hearts {
                 heartsBroken = true
             }
@@ -121,7 +118,26 @@ class GameViewModel: ObservableObject {
             players[i].endRound()
         }
         playedCards = []
-        gameStarted = false
+        
+        // Check for game over
+        if players.contains(where: { $0.score >= 100 }) {
+            isGameOver = true
+            gameStarted = false
+        } else {
+            gameStarted = false
+        }
+    }
+    
+    func startNewGame() {  // NEW
+        for i in 0..<players.count {
+            players[i].score = 0
+            players[i].lastRoundScore = 0
+            players[i].wonCards = []
+            players[i].hand = []
+        }
+        roundNumber = 0
+        isGameOver = false
+        setupGame()
     }
     
     func playAITurn() {
@@ -129,7 +145,6 @@ class GameViewModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 let isFirstTrick = RuleValidator.isFirstTrick(players: self.players)
                 
-                // Get legal cards for AI
                 let legalCards = RuleValidator.getLegalCards(
                     hand: self.players[self.currentPlayerIndex].hand,
                     playedCards: self.playedCards,
