@@ -2,6 +2,7 @@ import Foundation
 
 class RuleValidator {
     
+    // Finds the player index with the 2 of Clubs
     static func findPlayerWith2OfClubs(players: [Player]) -> Int? {
         for (index, player) in players.enumerated() {
             if player.hand.contains(where: { $0.isTwoOfClubs }) {
@@ -11,7 +12,10 @@ class RuleValidator {
         return nil
     }
     
+    // Determines if it is the first trick of the hand (all players have 13 cards)
     static func isFirstTrick(players: [Player]) -> Bool {
+        // NOTE: This assumes 'players' array reflects the state *before* the first card is played.
+        // A more reliable check is often done via the overall played cards count.
         return players.allSatisfy { $0.hand.count == 13 }
     }
     
@@ -23,38 +27,46 @@ class RuleValidator {
         isFirstTrick: Bool
     ) -> Bool {
         
-        // First trick: must play 2 of clubs if you have it and are leading
-        if isFirstTrick && playedCards.isEmpty {
-            return card.isTwoOfClubs
-        }
-        
-        // If someone already played in this trick (following)
-        if let firstCard = playedCards.first {
-            let leadSuit = firstCard.card.suit
-            let hasSuit = hand.contains { $0.suit == leadSuit }
+        // --- 1. Leading the Trick ---
+        if playedCards.isEmpty {
             
-            if hasSuit {
-                // Must follow suit
-                return card.suit == leadSuit
-            } else {
-                // No suit - can slough, BUT check first trick points rule
-                if isFirstTrick && (card.suit == .hearts || (card.suit == .spades && card.rank == .queen)) {
-                    // Can't slough points on first trick unless forced
-                    let hasOnlyPoints = hand.allSatisfy { $0.points > 0 }
-                    return hasOnlyPoints
-                }
-                return true
+            // First rule: MUST lead 2 of clubs if it's the very first trick of the hand.
+            if isFirstTrick {
+                return card.isTwoOfClubs
             }
+            
+            // Regular lead: cannot lead hearts unless hearts are broken OR the player only has hearts.
+            if card.suit == .hearts && !heartsBroken {
+                let onlyHasHearts = hand.allSatisfy { $0.suit == .hearts }
+                return onlyHasHearts
+            }
+            
+            // All other cards are legal to lead.
+            return true
         }
         
-        // Leading a card (first in trick)
-        if card.suit == .hearts && !heartsBroken {
-            // Can't lead hearts unless broken OR only have hearts
-            let onlyHasHearts = hand.allSatisfy { $0.suit == .hearts }
-            return onlyHasHearts
-        }
+        // --- 2. Following the Trick ---
         
-        return true
+        let leadSuit = playedCards.first!.card.suit
+        let hasSuit = hand.contains { $0.suit == leadSuit }
+        
+        if hasSuit {
+            // Must follow suit if possible
+            return card.suit == leadSuit
+        } else {
+            // Void in suit - can slough, BUT check first trick points rule
+            
+            let isPointCard = card.suit == .hearts || (card.suit == .spades && card.rank == .queen)
+
+            if isFirstTrick && isPointCard {
+                // BUG FIX: On the very first trick, you cannot slough points (Hearts or Q♠)
+                // even if you are void of the lead suit.
+                return false
+            }
+            
+            // Otherwise, can slough any card.
+            return true
+        }
     }
     
     static func getLegalCards(

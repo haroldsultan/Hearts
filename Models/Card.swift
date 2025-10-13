@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Combine
 
@@ -6,7 +7,7 @@ enum Suit: String, CaseIterable {
     case diamonds = "♦️"
     case spades = "♠️"
     case hearts = "♥️"
-    
+
     var color: Color {
         switch self {
         case .hearts, .diamonds: return .red
@@ -18,7 +19,7 @@ enum Rank: String, CaseIterable {
     case two = "2", three = "3", four = "4", five = "5", six = "6"
     case seven = "7", eight = "8", nine = "9", ten = "10"
     case jack = "J", queen = "Q", king = "K", ace = "A"
-    
+
     var value: Int {
         switch self {
         case .two: return 2
@@ -42,23 +43,33 @@ struct Card: Identifiable, Equatable, Hashable {
     let id = UUID()
     let rank: Rank
     let suit: Suit
-    
+
     var points: Int {
         if suit == .hearts { return 1 }
         if suit == .spades && rank == .queen { return 13 }
         return 0
     }
-    
+
     var isTwoOfClubs: Bool {
         rank == .two && suit == .clubs
     }
-    
+
     static func == (lhs: Card, rhs: Card) -> Bool {
         lhs.rank == rhs.rank && lhs.suit == rhs.suit
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(rank)
         hasher.combine(suit)
+    }
+
+    static func allRanksAndSuits() -> [Card] {
+        var deck: [Card] = []
+        for suit in Suit.allCases {
+            for rank in Rank.allCases {
+                deck.append(Card(rank: rank, suit: suit))
+            }
+        }
+        return deck
     }
 }
