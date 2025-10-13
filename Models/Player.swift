@@ -25,4 +25,18 @@ struct Player {
         score += lastRoundScore
         wonCards = []
     }
+    
+    var sortedHand: [Card] {
+        hand.sorted { card1, card2 in
+            // Sort by suit first (hearts, spades, diamonds, clubs)
+            if card1.suit != card2.suit {
+                let suitOrder: [Suit] = [.hearts, .spades, .diamonds, .clubs]
+                let index1 = suitOrder.firstIndex(of: card1.suit) ?? 0
+                let index2 = suitOrder.firstIndex(of: card2.suit) ?? 0
+                return index1 < index2
+            }
+            // Within same suit, sort by rank value
+            return card1.rank.value < card2.rank.value
+        }
+    }
 }

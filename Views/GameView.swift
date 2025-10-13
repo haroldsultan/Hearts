@@ -91,7 +91,7 @@ struct GameView: View {
                     Spacer()
                     
                     GeometryReader { geometry in
-                        let hand = viewModel.players[0].hand
+                        let hand = viewModel.players[0].sortedHand
                         let totalCards = hand.count
                         let spacing: CGFloat = 25
                         let isFirstTrick = RuleValidator.isFirstTrick(players: viewModel.players)
