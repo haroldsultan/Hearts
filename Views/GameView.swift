@@ -89,20 +89,37 @@ struct GameView: View {
                     
                     Spacer()
                     
-                    HStack(spacing: -20) {
-                        ForEach(viewModel.players[0].hand) { card in
-                            Button(action: {
-                                if viewModel.currentPlayerIndex == 0 {
-                                    viewModel.playCard(card)
+                    GeometryReader { geometry in
+                        let hand = viewModel.players[0].hand
+                        let totalCards = hand.count
+                        let cardWidth: CGFloat = 75
+                        let cardHeight: CGFloat = 112
+                        let spacing: CGFloat = 25
+
+                        ZStack {
+                            ForEach(Array(hand.enumerated()), id: \.element.id) { index, card in
+                                let centerIndex = CGFloat(totalCards - 1) / 2
+                                let xOffset = (CGFloat(index) - centerIndex) * spacing
+
+                                Button(action: {
+                                    if viewModel.currentPlayerIndex == 0 {
+                                        viewModel.playCard(card)
+                                    }
+                                }) {
+                                    CardView(card: card)
+                                        .rotationEffect(.degrees(Double(index) - Double(centerIndex)) * 5)
                                 }
-                            }) {
-                                CardView(card: card)
+                                .offset(x: xOffset, y: 0)
+                                .disabled(viewModel.currentPlayerIndex != 0)
+                                .opacity(viewModel.currentPlayerIndex == 0 ? 1.0 : 0.5)
                             }
-                            .disabled(viewModel.currentPlayerIndex != 0)
-                            .opacity(viewModel.currentPlayerIndex == 0 ? 1.0 : 0.5)
                         }
+                        .scaleEffect(0.95) // <-- scale down everything slightly
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 12)
                     }
-                    .padding()
+                    .frame(height: 200)
+                    .padding(.horizontal)
                 }
             }
         }
