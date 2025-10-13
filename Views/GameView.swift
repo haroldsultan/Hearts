@@ -1,4 +1,3 @@
-
 import SwiftUI
 import Combine
 
@@ -21,8 +20,7 @@ struct GameView: View {
                                 Text(viewModel.players[i].name)
                                     .foregroundColor(.white)
                                     .frame(width: 80, alignment: .leading)
-                                
-                                Text("This Round: +\(viewModel.players[i].roundScore)")
+                                Text("This Round: +\(viewModel.players[i].lastRoundScore)")
                                     .foregroundColor(.yellow)
                                     .frame(width: 150)
                                 
@@ -56,12 +54,15 @@ struct GameView: View {
                                 Text(viewModel.players[i].name)
                                     .foregroundColor(.white)
                                     .font(.headline)
-                                Text("Score: \(viewModel.players[i].score)")
+                                Text("Round: +\(viewModel.players[i].roundScore)")
+                                    .foregroundColor(.yellow)
+                                    .font(.caption)
+                                Text("Total: \(viewModel.players[i].score)")
                                     .foregroundColor(.white)
                                     .font(.caption)
                                 Text("\(viewModel.players[i].hand.count) cards")
-                                    .foregroundColor(.white)
-                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .font(.caption2)
                             }
                             .padding(8)
                             .background(i == viewModel.currentPlayerIndex ? Color.yellow.opacity(0.3) : Color.clear)
@@ -114,18 +115,13 @@ struct GameView: View {
                                 .opacity(viewModel.currentPlayerIndex == 0 ? 1.0 : 0.5)
                             }
                         }
-                        .scaleEffect(0.95) // <-- scale down everything slightly
+                        .scaleEffect(0.95)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 12)
                     }
                     .frame(height: 200)
                     .padding(.horizontal)
                 }
-            }
-        }
-        .onAppear {
-            if viewModel.players.isEmpty {
-                viewModel.setupGame()
             }
         }
     }
