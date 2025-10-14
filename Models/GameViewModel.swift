@@ -28,6 +28,13 @@ class GameViewModel: ObservableObject {
     @Published var isProcessing = false
     @Published var heartsBroken = false
     @Published var isGameOver = false
+    @Published var lastTrickWinner: Int? = nil
+    @Published var difficulty: DifficultyLevel = .medium {
+        didSet {
+            // Save difficulty whenever it changes
+            GameSettings.shared.difficulty = difficulty
+        }
+    }
     
     // Passing phase
     @Published var isPassing = false
@@ -35,12 +42,18 @@ class GameViewModel: ObservableObject {
     @Published var selectedCardsToPass: Set<Card> = []
     private var allPassedCards: [[Card]] = [[], [], [], []]  // Cards each player is passing
     
+    // NEW: Track Queen of Spades for stats
+    private var tookQueenThisRound: [Bool] = [false, false, false, false]
+    
     init() {
+        // Load saved difficulty
+        difficulty = GameSettings.shared.difficulty
+        
         players = [
-            Player(name: "You", isHuman: true, hand: []),
-            Player(name: "Bob", isHuman: false, hand: []),
+            Player(name: GameSettings.shared.playerName, isHuman: true, hand: []),
+            Player(name: "Emma", isHuman: false, hand: []),
             Player(name: "Abby", isHuman: false, hand: []),
-            Player(name: "Emma", isHuman: false, hand: [])
+            Player(name: "Bob", isHuman: false, hand: [])
         ]
         setupGame()
     }
@@ -63,6 +76,7 @@ class GameViewModel: ObservableObject {
         selectedCardsToPass = []
         allPassedCards = [[], [], [], []]
         playedCardsThisRound = []
+        tookQueenThisRound = [false, false, false, false]  // NEW: Reset queen tracker
         
         if passDirection == .none {
             startPlaying()
@@ -110,7 +124,7 @@ class GameViewModel: ObservableObject {
         startPlaying()
     }
     
-    private func getPassRecipient(from playerIndex: Int) -> Int {
+    func getPassRecipient(from playerIndex: Int) -> Int {
         switch passDirection {
         case .left: return (playerIndex + 1) % 4
         case .across: return (playerIndex + 2) % 4
@@ -128,7 +142,10 @@ class GameViewModel: ObservableObject {
         }
         gameStarted = true
         if !players[currentPlayerIndex].isHuman {
-            playAITurn()
+            // Slight delay before AI plays to show whose turn it is
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.playAITurn()
+            }
         }
     }
     
@@ -152,8 +169,13 @@ class GameViewModel: ObservableObject {
                 completeTrick()
             } else {
                 currentPlayerIndex = (currentPlayerIndex + 1) % 4
-                isProcessing = false
-                playAITurn()
+                
+                // Delay before next player's turn (especially for AI)
+                let delay = players[currentPlayerIndex].isHuman ? 0.0 : 0.1
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    self.isProcessing = false
+                    self.playAITurn()
+                }
             }
         } else {
             isProcessing = false
@@ -167,14 +189,22 @@ class GameViewModel: ObservableObject {
         
         let wonCards = playedCards.map { $0.card }
         players[winner.playerIndex].wonCards.append(contentsOf: wonCards)
+        lastTrickWinner = winner.playerIndex
         
+        // NEW: Check if winner took Queen of Spades
+        for card in wonCards {
+            if card.rank == .queen && card.suit == .spades {
+                tookQueenThisRound[winner.playerIndex] = true
+            }
+        }
+
         if players[0].hand.isEmpty {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 self.endRound()
                 self.isProcessing = false
             }
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 self.playedCards = []
                 self.currentPlayerIndex = winner.playerIndex
                 self.isProcessing = false
@@ -203,11 +233,17 @@ class GameViewModel: ObservableObject {
             }
         }
         
+        // NEW: Record stats for this round
+        recordRoundStats()
+        
         playedCards = []
         passDirection = passDirection.next()
         gameStarted = false
+        
         if players.contains(where: { $0.score >= 100 }) {
             isGameOver = true
+            // NEW: Record game stats when game ends
+            recordGameStats()
         }
     }
     
@@ -227,22 +263,65 @@ class GameViewModel: ObservableObject {
     func playAITurn() {
         guard !players[currentPlayerIndex].isHuman, !players[currentPlayerIndex].hand.isEmpty else { return }
         
+        let iterations = difficulty.iterations
+        
         let bestCard = AIPlayingStrategy.selectCard(
             playerIndex: self.currentPlayerIndex,
-            players: self.players, // Passes the players array (needed for hand data)
-            currentTrick: self.playedCards, // Passes the current trick state
+            players: self.players,
+            currentTrick: self.playedCards,
             heartsBroken: self.heartsBroken,
             playedCardsThisRound: self.playedCardsThisRound,
-            // You can adjust these parameters, but the default 50000/20 in the AI file is much stronger
-            iterations: 500 // Using your specified lower iteration count for speed
-            // numSamples: 20 // The AI file default will be used if omitted
+            iterations: iterations,
+            numSamples: 25
         )
         
-        // Ensure a card was selected before attempting to play
         if let cardToPlay = bestCard {
             self.playCard(cardToPlay)
         } else {
             print("AI failed to select a card.")
+        }
+    }
+    
+    // MARK: - Player Name Management
+    func updatePlayerName() {
+        players[0].name = GameSettings.shared.playerName
+    }
+    
+    // MARK: - Stats Tracking
+    
+    /// Records stats for all players at the end of a round
+    private func recordRoundStats() {
+        // Find who won the round (lowest points this round)
+        let minRoundScore = players.map { $0.lastRoundScore }.min() ?? 0
+        
+        for (index, player) in players.enumerated() {
+            let wonRound = player.lastRoundScore == minRoundScore
+            let shotMoon = player.shotTheMoon
+            let tookQueen = tookQueenThisRound[index]
+            
+            StatsManager.shared.recordRoundForPlayer(
+                playerName: player.name,
+                points: player.lastRoundScore,
+                wonRound: wonRound,
+                shotMoon: shotMoon,
+                tookQueen: tookQueen
+            )
+        }
+    }
+    
+    /// Records game stats for all players when game ends
+    private func recordGameStats() {
+        // Find the winner (lowest total score)
+        let minScore = players.map { $0.score }.min() ?? 0
+        
+        for player in players {
+            let wonGame = player.score == minScore
+            
+            StatsManager.shared.recordGameEndForPlayer(
+                playerName: player.name,
+                finalScore: player.score,
+                wonGame: wonGame
+            )
         }
     }
 }

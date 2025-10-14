@@ -39,7 +39,7 @@ enum Rank: String, CaseIterable {
     }
 }
 
-struct Card: Identifiable, Equatable, Hashable {
+struct Card: Identifiable, Equatable, Hashable, Comparable {
     let id = UUID()
     let rank: Rank
     let suit: Suit
@@ -54,8 +54,26 @@ struct Card: Identifiable, Equatable, Hashable {
         rank == .two && suit == .clubs
     }
 
+    var isQueenOfSpades: Bool {
+        rank == .queen && suit == .spades
+    }
+    
     static func == (lhs: Card, rhs: Card) -> Bool {
         lhs.rank == rhs.rank && lhs.suit == rhs.suit
+    }
+    
+    // We add the less-than operator using your sorting logic.
+    static func < (lhs: Card, rhs: Card) -> Bool {
+        if lhs.suit != rhs.suit {
+            // Using a defined order for suits (can be anything consistent)
+            let suitOrder: [Suit] = [.clubs, .diamonds, .spades, .hearts]
+            let lhsIndex = suitOrder.firstIndex(of: lhs.suit)!
+            let rhsIndex = suitOrder.firstIndex(of: rhs.suit)!
+            return lhsIndex < rhsIndex
+        } else {
+            // If suits are the same, compare by rank
+            return lhs.rank.value < rhs.rank.value
+        }
     }
 
     func hash(into hasher: inout Hasher) {

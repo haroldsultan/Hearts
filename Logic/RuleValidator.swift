@@ -12,11 +12,9 @@ class RuleValidator {
         return nil
     }
     
-    // Determines if it is the first trick of the hand (all players have 13 cards)
+    // Determines if it is the first trick of the hand (i.e., no cards have been won yet)
     static func isFirstTrick(players: [Player]) -> Bool {
-        // NOTE: This assumes 'players' array reflects the state *before* the first card is played.
-        // A more reliable check is often done via the overall played cards count.
-        return players.allSatisfy { $0.hand.count == 13 }
+        return players.allSatisfy { $0.wonCards.isEmpty }
     }
     
     static func canPlayCard(
@@ -46,27 +44,32 @@ class RuleValidator {
         }
         
         // --- 2. Following the Trick ---
-        
-        let leadSuit = playedCards.first!.card.suit
-        let hasSuit = hand.contains { $0.suit == leadSuit }
-        
-        if hasSuit {
-            // Must follow suit if possible
-            return card.suit == leadSuit
-        } else {
-            // Void in suit - can slough, BUT check first trick points rule
-            
-            let isPointCard = card.suit == .hearts || (card.suit == .spades && card.rank == .queen)
+               
+            let leadSuit = playedCards.first!.card.suit
+            let hasSuit = hand.contains { $0.suit == leadSuit }
+               
+            if hasSuit {
+                // Must follow suit if possible
+                return card.suit == leadSuit
+            } else {
+                // Void in suit - can slough any card, BUT check first trick points rule.
+                   
+                if isFirstTrick {
+                    let isPointCard = card.suit == .hearts || (card.suit == .spades && card.rank == .queen)
+                    let hasNonPointCards = hand.contains { $0.points == 0 }
 
-            if isFirstTrick && isPointCard {
-                // BUG FIX: On the very first trick, you cannot slough points (Hearts or Q♠)
-                // even if you are void of the lead suit.
-                return false
+                    if isPointCard {
+                        // Cannot play a point card unless you have NO non-point cards left.
+                        return !hasNonPointCards
+                    }
+                    
+                    // Non-point cards are always legal when void on the first trick.
+                    return true
+                }
+                   
+                // Not the first trick: can slough any card.
+                return true
             }
-            
-            // Otherwise, can slough any card.
-            return true
-        }
     }
     
     static func getLegalCards(

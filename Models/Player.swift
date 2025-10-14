@@ -1,7 +1,7 @@
 import Foundation
 
 struct Player {
-    let name: String
+    var name: String  // Changed from 'let' to 'var' to allow name updates
     let isHuman: Bool
     var hand: [Card]
     var wonCards: [Card] = []
