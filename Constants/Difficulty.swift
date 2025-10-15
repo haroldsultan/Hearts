@@ -7,8 +7,8 @@ enum DifficultyLevel: String, CaseIterable {
     var iterations: Int {
         switch self {
         case .easy: return 500
-        case .medium: return 2000
-        case .hard: return 3000
+        case .medium: return 1500
+        case .hard: return 2000
         }
     }
     
