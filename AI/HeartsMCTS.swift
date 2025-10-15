@@ -289,7 +289,7 @@ class AIPlayingStrategy {
         // 5. Monte Carlo Tree Search with Playouts (MCTS-P)
         let iterationsPerSample = iterations / numSamples
         
-        for sampleNum in 0..<numSamples {
+        for _ in 0..<numSamples {
             // A. Sample the unknown cards and create a full state
             let sampledState = sampleInitialState(
                 playerIndex: playerIndex,
@@ -302,7 +302,7 @@ class AIPlayingStrategy {
             // B. MCTS Search on the sampled state
             let root = MCTSNode(state: sampledState)
 
-            for iteration in 0..<iterationsPerSample {
+            for _ in 0..<iterationsPerSample {
                 // Selection & Expansion
                 var node = root
                 var selectionDepth = 0

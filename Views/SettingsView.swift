@@ -43,8 +43,8 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(InlinePickerStyle())
-                    .onChange(of: selectedDifficulty) { newValue in
-                        GameSettings.shared.difficulty = newValue
+                    .onChange(of: selectedDifficulty) {
+                        GameSettings.shared.difficulty = selectedDifficulty
                     }
                 }
                 

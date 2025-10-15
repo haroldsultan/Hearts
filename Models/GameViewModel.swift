@@ -45,6 +45,18 @@ class GameViewModel: ObservableObject {
     // NEW: Track Queen of Spades for stats
     private var tookQueenThisRound: [Bool] = [false, false, false, false]
     
+    // ANIMATION: Animation trigger for GameView to observe
+    @Published var animationTrigger: AnimationEvent? = nil
+    
+    // ANIMATION: Event types
+    enum AnimationEvent: Equatable {
+        case heartsBroken
+        case queenPlayed
+        case queenWon
+        case shootMoon(playerName: String)
+        case trickWon
+    }
+    
     init() {
         // Load saved difficulty
         difficulty = GameSettings.shared.difficulty
@@ -103,6 +115,10 @@ class GameViewModel: ObservableObject {
     
     func submitPass() {
         guard selectedCardsToPass.count == 3 else { return }
+        
+        // SOUND: Play pass sound
+        SoundManager.shared.playCardPassSound()
+        
         allPassedCards[0] = Array(selectedCardsToPass)
         executePass()
     }
@@ -141,8 +157,11 @@ class GameViewModel: ObservableObject {
             currentPlayerIndex = 0
         }
         gameStarted = true
+        
+        // Start background music
+        SoundManager.shared.startBackgroundMusic()
+        
         if !players[currentPlayerIndex].isHuman {
-            // Slight delay before AI plays to show whose turn it is
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 self.playAITurn()
             }
@@ -159,11 +178,47 @@ class GameViewModel: ObservableObject {
                                         isFirstTrick: isFirstTrick) else { return }
         
         isProcessing = true
+        
+        // SOUND: Play card sound (only for human player)
+        if currentPlayerIndex == 0 {
+            SoundManager.shared.playCardSound()
+        }
+        
+        // Check if Queen of Spades is being played
+        if card.rank == .queen && card.suit == .spades {
+            SoundManager.shared.playQueenPlayedSound()
+            // ANIMATION: Queen played
+            animationTrigger = .queenPlayed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if self.animationTrigger == .queenPlayed {
+                    self.animationTrigger = nil
+                }
+            }
+        }
+        
+        // Check if hearts will break
+        let wasHeartsBroken = heartsBroken
+        
         if let index = players[currentPlayerIndex].hand.firstIndex(of: card) {
             players[currentPlayerIndex].hand.remove(at: index)
             playedCards.append((currentPlayerIndex, card))
             playedCardsThisRound.append(card)
-            if card.suit == .hearts { heartsBroken = true }
+            
+            if card.suit == .hearts {
+                heartsBroken = true
+                
+                // SOUND: Hearts just broke
+                if !wasHeartsBroken {
+                    SoundManager.shared.playHeartsBreakSound()
+                    // ANIMATION: Hearts broken
+                    animationTrigger = .heartsBroken
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        if self.animationTrigger == .heartsBroken {
+                            self.animationTrigger = nil
+                        }
+                    }
+                }
+            }
             
             if playedCards.count == 4 {
                 completeTrick()
@@ -191,10 +246,41 @@ class GameViewModel: ObservableObject {
         players[winner.playerIndex].wonCards.append(contentsOf: wonCards)
         lastTrickWinner = winner.playerIndex
         
+        // SOUND: Trick won (only if human player wins)
+        if winner.playerIndex == 0 {
+            SoundManager.shared.playTrickWonSound()
+        }
+        
+        // ANIMATION: Trick won (handled by player box highlight)
+        animationTrigger = .trickWon
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            if self.animationTrigger == .trickWon {
+                self.animationTrigger = nil
+            }
+        }
+        
         // NEW: Check if winner took Queen of Spades
+        var tookQueen = false
         for card in wonCards {
             if card.rank == .queen && card.suit == .spades {
                 tookQueenThisRound[winner.playerIndex] = true
+                tookQueen = true
+            }
+        }
+        
+        // SOUND: Queen won (play after trick won)
+        if tookQueen {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                SoundManager.shared.playQueenWonSound()
+            }
+            // ANIMATION: Queen won
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.animationTrigger = .queenWon
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if self.animationTrigger == .queenWon {
+                        self.animationTrigger = nil
+                    }
+                }
             }
         }
 
@@ -233,6 +319,21 @@ class GameViewModel: ObservableObject {
             }
         }
         
+        // SOUND: Shoot the moon or round complete
+        if let shooterIndex = moonShooterIndex {
+            SoundManager.shared.playShootMoonSound()
+            // ANIMATION: Shoot the moon
+            let shooterName = players[shooterIndex].name
+            animationTrigger = .shootMoon(playerName: shooterName)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                if case .shootMoon = self.animationTrigger {
+                    self.animationTrigger = nil
+                }
+            }
+        } else {
+            SoundManager.shared.playRoundCompleteSound()
+        }
+        
         // NEW: Record stats for this round
         recordRoundStats()
         
@@ -242,12 +343,21 @@ class GameViewModel: ObservableObject {
         
         if players.contains(where: { $0.score >= 100 }) {
             isGameOver = true
+            
+            // SOUND: Game over (after a short delay)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                SoundManager.shared.playGameOverSound()
+            }
+            
             // NEW: Record game stats when game ends
             recordGameStats()
         }
     }
     
     func startNewGame() {
+        // SOUND: Button click
+        SoundManager.shared.playButtonClickSound()
+        
         for i in 0..<players.count {
             players[i].score = 0
             players[i].lastRoundScore = 0

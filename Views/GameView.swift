@@ -8,6 +8,15 @@ struct GameView: View {
     @State private var showSettingsView = false
     @State private var showFirstLaunchPrompt = false
     
+    @State private var showRulesView = false
+    
+    // Animation states
+    @State private var showHeartsBreakEffect = false
+    @State private var showQueenEffect = false
+    @State private var showShootMoonEffect = false
+    @State private var flashColor: Color? = nil
+    @State private var shakeAmount = 0
+    
     var body: some View {
         ZStack {
             Color.green.ignoresSafeArea()
@@ -17,14 +26,12 @@ struct GameView: View {
             } else if !viewModel.gameStarted && !viewModel.isPassing {
                 roundCompleteScreen
             } else {
-                // Combined screen for both playing and passing (with overlay for passing)
                 playingAndPassingContent
             }
             
-            // --- TOP BAR: New Game + Difficulty ---
+            // --- TOP BAR ---
             if !viewModel.isGameOver {
                 ZStack {
-                    // New Game button - left top corner
                     VStack {
                         HStack(spacing: 8) {
                             Button("New Game") {
@@ -36,11 +43,24 @@ struct GameView: View {
                             .foregroundColor(.white)
                             .cornerRadius(8)
                             
-                            // Settings button
                             Button(action: {
+                                SoundManager.shared.playButtonClickSound()
                                 showSettingsView = true
                             }) {
                                 Image(systemName: "gearshape.fill")
+                                    .font(.caption)
+                                    .padding(8)
+                                    .background(Color.blue.opacity(0.8))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                            }
+                            
+                            // Rules button
+                            Button(action: {
+                                SoundManager.shared.playButtonClickSound()
+                                showRulesView = true
+                            }) {
+                                Image(systemName: "questionmark.circle.fill")
                                     .font(.caption)
                                     .padding(8)
                                     .background(Color.blue.opacity(0.8))
@@ -55,13 +75,12 @@ struct GameView: View {
                     .padding(.top, 10)
                     .padding(.leading, 10)
                     
-                    // Difficulty button - right top corner
                     VStack {
                         HStack(spacing: 8) {
                             Spacer()
                             
-                            // Stats button
                             Button(action: {
+                                SoundManager.shared.playButtonClickSound()
                                 showStatsView = true
                             }) {
                                 Image(systemName: "chart.bar.fill")
@@ -96,6 +115,7 @@ struct GameView: View {
                     VStack(spacing: 12) {
                         ForEach(DifficultyLevel.allCases, id: \.self) { level in
                             Button(action: {
+                                SoundManager.shared.playButtonClickSound()
                                 viewModel.difficulty = level
                                 showDifficultyPicker = false
                             }) {
@@ -122,6 +142,7 @@ struct GameView: View {
                     .padding(.horizontal)
                     
                     Button("Close") {
+                        SoundManager.shared.playButtonClickSound()
                         showDifficultyPicker = false
                     }
                     .font(.headline)
@@ -135,6 +156,64 @@ struct GameView: View {
                 .cornerRadius(20)
                 .frame(width: 300)
             }
+            
+            // ANIMATION OVERLAYS
+            if showHeartsBreakEffect {
+                ParticleEffect(type: .hearts)
+                    .allowsHitTesting(false)
+            }
+            
+            if showQueenEffect {
+                ParticleEffect(type: .sparkles)
+                    .allowsHitTesting(false)
+            }
+            
+            if showShootMoonEffect {
+                ZStack {
+                    ParticleEffect(type: .moonEmoji)
+                    ParticleEffect(type: .stars)
+                }
+                .allowsHitTesting(false)
+            }
+            
+            if let color = flashColor {
+                FlashOverlay(color: color)
+            }
+        }
+        .shake(trigger: shakeAmount)
+        .onChange(of: viewModel.animationTrigger) { trigger in
+            guard let trigger = trigger else { return }
+            
+            switch trigger {
+            case .heartsBroken:
+                flashColor = .red
+                showHeartsBreakEffect = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    showHeartsBreakEffect = false
+                    flashColor = nil
+                }
+                
+            case .queenPlayed:
+                flashColor = .black
+                showQueenEffect = true
+                shakeAmount += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    flashColor = nil
+                    showQueenEffect = false
+                }
+                
+            case .queenWon:
+                shakeAmount += 2
+                
+            case .shootMoon(let playerName):
+                showShootMoonEffect = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    showShootMoonEffect = false
+                }
+                
+            case .trickWon:
+                break
+            }
         }
         .sheet(isPresented: $showStatsView) {
             StatsView()
@@ -142,25 +221,24 @@ struct GameView: View {
         .sheet(isPresented: $showSettingsView) {
             SettingsView()
         }
+        .sheet(isPresented: $showRulesView) {
+            RulesView()
+        }
         .fullScreenCover(isPresented: $showFirstLaunchPrompt) {
             FirstLaunchNamePrompt(isPresented: $showFirstLaunchPrompt)
                 .onDisappear {
-                    // Update player name after first launch setup
                     updatePlayerName()
                 }
         }
         .onAppear {
-            // Check for first launch
             if GameSettings.shared.isFirstLaunch {
                 showFirstLaunchPrompt = true
             }
-            // Update player name in case it changed in settings
             updatePlayerName()
         }
     }
     
     private func updatePlayerName() {
-        // Update the human player's name from settings
         viewModel.updatePlayerName()
     }
     
@@ -176,6 +254,8 @@ struct GameView: View {
             Text("\(winner.name) Wins!")
                 .font(.largeTitle)
                 .foregroundColor(.yellow)
+                .glow(color: .yellow, radius: 20)
+                .bounceIn()
             
             VStack(spacing: 15) {
                 Text("Final Scores:")
@@ -198,7 +278,6 @@ struct GameView: View {
                 }
             }
             
-            // Difficulty selector on game over screen
             VStack(spacing: 10) {
                 Text("AI Difficulty for Next Game")
                     .font(.headline)
@@ -228,54 +307,56 @@ struct GameView: View {
     
     // MARK: - Round Complete Screen
     var roundCompleteScreen: some View {
-            VStack(spacing: 20) {
-                Text("Round \(viewModel.roundNumber) Complete!")
-                    .font(.largeTitle)
-                    .foregroundColor(.white)
-                
-                // Show if someone shot the moon
-                if let moonShooter = viewModel.players.first(where: { $0.shotTheMoon }) {
-                    Text("\(moonShooter.name) SHOT THE MOON! 🌙")
-                        .font(.title)
-                        .foregroundColor(.yellow)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(10)
-                }
-                
-                VStack(spacing: 10) {
-                    ForEach(0..<viewModel.players.count, id: \.self) { i in
-                        HStack(spacing: 15) {
-                            Text(viewModel.players[i].name)
-                                .foregroundColor(.white)
-                                .frame(width: 80, alignment: .leading)
-                            
-                            Text("This Round: +\(viewModel.players[i].lastRoundScore)")
-                                .foregroundColor(viewModel.players[i].shotTheMoon ? .green : .yellow)
-                                .frame(width: 150, alignment: .leading)
-                            
-                            Text("Total: \(viewModel.players[i].score)")
-                                .foregroundColor(.white)
-                                .font(.title3)
-                                .frame(width: 80, alignment: .leading)
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                }
-                
-                Button("Start Next Round") {
-                    viewModel.setupGame()
-                }
-                .font(.title2)
-                .padding()
-                .background(Color.blue)
+        VStack(spacing: 20) {
+            Text("Round \(viewModel.roundNumber) Complete!")
+                .font(.largeTitle)
                 .foregroundColor(.white)
-                .cornerRadius(10)
-                .padding(.top, 20)
+            
+            if let moonShooter = viewModel.players.first(where: { $0.shotTheMoon }) {
+                Text("\(moonShooter.name) SHOT THE MOON! 🌙")
+                    .font(.title)
+                    .foregroundColor(.yellow)
+                    .glow(color: .yellow, radius: 15)
+                    .padding()
+                    .background(Color.black.opacity(0.5))
+                    .cornerRadius(10)
             }
+            
+            VStack(spacing: 10) {
+                ForEach(0..<viewModel.players.count, id: \.self) { i in
+                    HStack(spacing: 15) {
+                        Text(viewModel.players[i].name)
+                            .foregroundColor(.white)
+                            .frame(width: 80, alignment: .leading)
+                        
+                        Text("This Round: +\(viewModel.players[i].lastRoundScore)")
+                            .foregroundColor(viewModel.players[i].shotTheMoon ? .green : .yellow)
+                            .frame(width: 150, alignment: .leading)
+                        
+                        Text("Total: \(viewModel.players[i].score)")
+                            .foregroundColor(.white)
+                            .font(.title3)
+                            .frame(width: 80, alignment: .leading)
+                    }
+                    .padding(.horizontal, 20)
+                    .bounceIn()
+                }
+            }
+            
+            Button("Start Next Round") {
+                SoundManager.shared.playButtonClickSound()
+                viewModel.setupGame()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+            .padding(.top, 20)
+        }
     }
     
-    // MARK: - Playing and Passing Content (excluding the floating New Game button)
+    // MARK: - Playing and Passing Content
     var playingAndPassingContent: some View {
         let playerHand = viewModel.players[0].sortedHand
         let totalCardsInHand = playerHand.count
@@ -292,24 +373,20 @@ struct GameView: View {
         )
         
         return VStack(spacing: 0) {
-            // Top area with circle and player info
             ZStack {
-                // Center circle
                 Circle()
                     .fill(Color.black.opacity(0.3))
                     .frame(width: 280, height: 280)
                 
-                // Player info boxes with absolute positions
-                playerInfoView(index: 1, position: .left)    // Emma
+                playerInfoView(index: 1, position: .left)
                     .position(x: 40, y: 225)
-                playerInfoView(index: 2, position: .top)     // Abby
+                playerInfoView(index: 2, position: .top)
                     .position(x: 196, y: 50)
-                playerInfoView(index: 3, position: .right)   // Bob
+                playerInfoView(index: 3, position: .right)
                     .position(x: 362, y: 225)
-                playerInfoView(index: 0, position: .bottom)  // You
+                playerInfoView(index: 0, position: .bottom)
                     .position(x: 196, y: 400)
                 
-                // Played cards (only visible during actual play)
                 if !viewModel.isPassing {
                     ForEach(Array(viewModel.playedCards.enumerated()), id: \.element.playerIndex) { index, play in
                         let position = getTrickCardPosition(for: play.playerIndex)
@@ -326,10 +403,9 @@ struct GameView: View {
                     }
                 }
                 
-                // Overlay for Passing phase
                 if viewModel.isPassing {
                     VStack(spacing: 15) {
-                        Spacer() // Pushes button to the bottom
+                        Spacer()
                         
                         Button("Confirm Pass (\(viewModel.selectedCardsToPass.count)/3)") {
                             viewModel.submitPass()
@@ -340,16 +416,15 @@ struct GameView: View {
                         .foregroundColor(.white)
                         .cornerRadius(10)
                         .disabled(viewModel.selectedCardsToPass.count != 3)
-                        .padding(.bottom, 20) // Give space above the hand
+                        .padding(.bottom, 20)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black.opacity(0.4)) // Semi-transparent overlay
-                    .edgesIgnoringSafeArea(.all) // Extend overlay to edges
+                    .background(Color.black.opacity(0.4))
+                    .edgesIgnoringSafeArea(.all)
                 }
             }
             .frame(height: 450)
             
-            // Passing instruction text - in the light green area
             if viewModel.isPassing {
                 let recipientIndex = viewModel.getPassRecipient(from: 0)
                 let recipientName = viewModel.players[recipientIndex].name
@@ -362,7 +437,6 @@ struct GameView: View {
                 Spacer()
             }
             
-            // Your hand
             GeometryReader { geometry in
                 ZStack {
                     ForEach(Array(playerHand.enumerated()), id: \.element.id) { index, card in
@@ -373,13 +447,12 @@ struct GameView: View {
                         let isLegalToPlay = legalCards.contains(card)
                         let isPlayable = viewModel.currentPlayerIndex == 0 && isLegalToPlay
                         
-                        // Card visual group
                         Group {
                             CardView(card: card)
                                 .scaleEffect(isSelectedForPassing ? 1.1 : 1.0)
                                 .offset(y: isSelectedForPassing ? -20 : 0)
                                 .animation(.spring(), value: isSelectedForPassing)
-                                .overlay( // Apply overlay directly to CardView
+                                .overlay(
                                     Group {
                                         if isSelectedForPassing {
                                             RoundedRectangle(cornerRadius: 8)
@@ -391,11 +464,11 @@ struct GameView: View {
                                     }
                                 )
                         }
-                        .rotationEffect(.degrees(Double(index) - Double(centerIndex)) * (viewModel.isPassing ? 3 : 5)) // Apply rotation AFTER overlay
-                        .offset(x: xOffset, y: 0) // Apply offset AFTER rotation and overlay
+                        .rotationEffect(.degrees(Double(index) - Double(centerIndex)) * (viewModel.isPassing ? 3 : 5))
+                        .offset(x: xOffset, y: 0)
                         .disabled(viewModel.isProcessing || (viewModel.isPassing && !viewModel.players[0].isHuman) || (!viewModel.isPassing && !isPlayable))
-                        .opacity(viewModel.isPassing || isPlayable ? 1.0 : 0.4) // Dim unplayable/unselectable cards
-                        .onTapGesture { // Use onTapGesture directly on the card for consistent hit area
+                        .opacity(viewModel.isPassing || isPlayable ? 1.0 : 0.4)
+                        .onTapGesture {
                             if viewModel.isPassing {
                                 viewModel.toggleCardSelection(card)
                             } else if isPlayable {
@@ -437,17 +510,17 @@ struct GameView: View {
         }
         .padding(8)
         .background(
-            isLastWinner && !viewModel.isPassing ? Color.red.opacity(0.7) : Color.black.opacity(0.5) // Don't highlight winner during passing
+            isLastWinner && !viewModel.isPassing ? Color.red.opacity(0.7) : Color.black.opacity(0.5)
         )
         .cornerRadius(8)
     }
     
     func getTrickCardPosition(for playerIndex: Int) -> CGPoint {
         switch playerIndex {
-        case 0: return CGPoint(x: 0, y: 80)      // You - bottom, closer to center
-        case 1: return CGPoint(x: -80, y: 0)    // Emma - left, closer to center
-        case 2: return CGPoint(x: 0, y: -80)     // Abby - top, closer to center
-        case 3: return CGPoint(x: 80, y: 0)     // Bob - right, closer to center
+        case 0: return CGPoint(x: 0, y: 80)
+        case 1: return CGPoint(x: -80, y: 0)
+        case 2: return CGPoint(x: 0, y: -80)
+        case 3: return CGPoint(x: 80, y: 0)
         default: return CGPoint(x: 0, y: 0)
         }
     }
