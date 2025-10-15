@@ -17,6 +17,10 @@ struct GameView: View {
     @State private var flashColor: Color? = nil
     @State private var shakeAmount = 0
     
+    // New states for highlighting received cards
+    @State private var receivedCards: Set<Card> = []
+    @State private var showReceivedHighlight = false
+    
     var body: some View {
         ZStack {
             Color.green.ignoresSafeArea()
@@ -205,7 +209,7 @@ struct GameView: View {
             case .queenWon:
                 shakeAmount += 2
                 
-            case .shootMoon(let playerName):
+            case .shootMoon:
                 showShootMoonEffect = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                     showShootMoonEffect = false
@@ -213,6 +217,27 @@ struct GameView: View {
                 
             case .trickWon:
                 break
+            }
+        }
+        // Monitor for pass completion to highlight received cards
+        .onChange(of: viewModel.isPassing) { oldValue, newValue in
+            if oldValue == true && newValue == false {
+                // Passing just completed, highlight received cards
+                // Note: You need to add getReceivedCards method to GameViewModel
+                if let received = viewModel.getReceivedCards(for: 0) {
+                    receivedCards = Set(received)
+                    showReceivedHighlight = true
+                    
+                    // Hide highlight after 3 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showReceivedHighlight = false
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            receivedCards.removeAll()
+                        }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showStatsView) {
@@ -360,9 +385,6 @@ struct GameView: View {
     var playingAndPassingContent: some View {
         let playerHand = viewModel.players[0].sortedHand
         let totalCardsInHand = playerHand.count
-        let baseSpacing: CGFloat = 25
-        let passingSpacing: CGFloat = 20
-        let currentSpacing = viewModel.isPassing ? passingSpacing : baseSpacing
         
         let isFirstTrick = RuleValidator.isFirstTrick(players: viewModel.players)
         let legalCards = RuleValidator.getLegalCards(
@@ -383,7 +405,7 @@ struct GameView: View {
                 playerInfoView(index: 2, position: .top)
                     .position(x: 196, y: 50)
                 playerInfoView(index: 3, position: .right)
-                    .position(x: 362, y: 225)
+                    .position(x: 342, y: 225)
                 playerInfoView(index: 0, position: .bottom)
                     .position(x: 196, y: 400)
                 
@@ -441,48 +463,92 @@ struct GameView: View {
                 ZStack {
                     ForEach(Array(playerHand.enumerated()), id: \.element.id) { index, card in
                         let centerIndex = CGFloat(totalCardsInHand - 1) / 2
-                        let xOffset = (CGFloat(index) - centerIndex) * currentSpacing
+                        let normalizedIndex = CGFloat(index) - centerIndex
+                        
+                        // Better spacing based on card count and screen width
+                        let availableWidth = geometry.size.width - 100 // Leave some margin
+                        let maxSpacing: CGFloat = 35 // Maximum spacing between cards
+                        let minSpacing: CGFloat = 20 // Minimum spacing
+                        let optimalSpacing = min(maxSpacing, max(minSpacing, availableWidth / CGFloat(totalCardsInHand)))
+                        
+                        // Simple horizontal offset with slight curve
+                        let xOffset = normalizedIndex * (viewModel.isPassing ? optimalSpacing * 1.2 : optimalSpacing)
+                        
+                        // Add a gentle arc effect - cards at edges are slightly lower
+                        let curveIntensity: CGFloat = 0.8
+                        let yOffset = abs(normalizedIndex) * abs(normalizedIndex) * curveIntensity
+                        
+                        // Rotation for fan effect
+                        let rotationAngle = normalizedIndex * (viewModel.isPassing ? 3 : 4)
                         
                         let isSelectedForPassing = viewModel.isPassing && viewModel.selectedCardsToPass.contains(card)
                         let isLegalToPlay = legalCards.contains(card)
                         let isPlayable = viewModel.currentPlayerIndex == 0 && isLegalToPlay
+                        let isReceivedCard = receivedCards.contains(card) && showReceivedHighlight
                         
-                        Group {
-                            CardView(card: card)
-                                .scaleEffect(isSelectedForPassing ? 1.1 : 1.0)
-                                .offset(y: isSelectedForPassing ? -20 : 0)
-                                .animation(.spring(), value: isSelectedForPassing)
-                                .overlay(
-                                    Group {
-                                        if isSelectedForPassing {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(Color.yellow, lineWidth: 4)
-                                        } else if isPlayable && !viewModel.isPassing {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(Color.white, lineWidth: 2)
-                                        }
+                        CardView(card: card)
+                            // Reasonable scaling
+                            .scaleEffect(
+                                isSelectedForPassing ? 1.1 :
+                                (isReceivedCard ? 1.05 : 1.0)
+                            )
+                            // Bring important cards to front
+                            .zIndex(
+                                isSelectedForPassing ? 100 + Double(index) :
+                                (isReceivedCard ? 90 + Double(index) : Double(index))
+                            )
+                            // Apply the card-specific overlay
+                            .overlay(
+                                Group {
+                                    if isSelectedForPassing {
+                                        // Selection highlight that follows the card
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.yellow, lineWidth: 4)
+                                            .shadow(color: .yellow, radius: 3)
+                                    } else if isReceivedCard {
+                                        // Highlight for received cards
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.green, lineWidth: 3)
+                                            .shadow(color: .green, radius: 5)
+                                            .scaleEffect(isReceivedCard ? 1.0 : 0.95)
+                                            .animation(
+                                                .easeInOut(duration: 0.6)
+                                                .repeatCount(3, autoreverses: true),
+                                                value: showReceivedHighlight
+                                            )
+                                    } else if isPlayable && !viewModel.isPassing {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.white, lineWidth: 2)
                                     }
-                                )
-                        }
-                        .rotationEffect(.degrees(Double(index) - Double(centerIndex)) * (viewModel.isPassing ? 3 : 5))
-                        .offset(x: xOffset, y: 0)
-                        .disabled(viewModel.isProcessing || (viewModel.isPassing && !viewModel.players[0].isHuman) || (!viewModel.isPassing && !isPlayable))
-                        .opacity(viewModel.isPassing || isPlayable ? 1.0 : 0.4)
-                        .onTapGesture {
-                            if viewModel.isPassing {
-                                viewModel.toggleCardSelection(card)
-                            } else if isPlayable {
-                                viewModel.playCard(card)
+                                }
+                            )
+                            // Apply rotation for fan effect
+                            .rotationEffect(.degrees(rotationAngle))
+                            // Apply position
+                            .offset(
+                                x: xOffset,
+                                y: yOffset + (isSelectedForPassing ? -25 : (isReceivedCard ? -15 : 0))
+                            )
+                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelectedForPassing)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isReceivedCard)
+                            .disabled(viewModel.isProcessing || (viewModel.isPassing && !viewModel.players[0].isHuman) || (!viewModel.isPassing && !isPlayable))
+                            .opacity(viewModel.isPassing || isPlayable ? 1.0 : 0.4)
+                            .onTapGesture {
+                                if viewModel.isPassing {
+                                    // Add haptic feedback for better touch response
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    viewModel.toggleCardSelection(card)
+                                } else if isPlayable {
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    viewModel.playCard(card)
+                                }
                             }
-                        }
                     }
                 }
-                .scaleEffect(0.95)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             .frame(height: 200)
-            .padding(.horizontal)
+            .padding(.horizontal, 20)
         }
     }
     
@@ -525,3 +591,19 @@ struct GameView: View {
         }
     }
 }
+
+// IMPORTANT: Add this to your GameViewModel class:
+/*
+extension GameViewModel {
+    // Add this method to track and return received cards
+    func getReceivedCards(for playerIndex: Int) -> [Card]? {
+        // You'll need to track these during the card passing phase
+        // Store them when cards are exchanged and return them here
+        // For example:
+        // return receivedCardsForPlayer[playerIndex]
+        
+        // Temporary implementation - replace with actual tracking
+        return nil
+    }
+}
+*/

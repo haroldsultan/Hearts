@@ -41,6 +41,8 @@ class GameViewModel: ObservableObject {
     @Published var passDirection: PassDirection = .left
     @Published var selectedCardsToPass: Set<Card> = []
     private var allPassedCards: [[Card]] = [[], [], [], []]  // Cards each player is passing
+    private var receivedCardsTracker: [Int: [Card]] = [:]
+
     
     // NEW: Track Queen of Spades for stats
     private var tookQueenThisRound: [Bool] = [false, false, false, false]
@@ -87,6 +89,7 @@ class GameViewModel: ObservableObject {
         heartsBroken = false
         selectedCardsToPass = []
         allPassedCards = [[], [], [], []]
+        receivedCardsTracker = [:]
         playedCardsThisRound = []
         tookQueenThisRound = [false, false, false, false]  // NEW: Reset queen tracker
         
@@ -133,6 +136,9 @@ class GameViewModel: ObservableObject {
         for i in 0..<players.count {
             let recipientIndex = getPassRecipient(from: i)
             players[recipientIndex].hand.append(contentsOf: allPassedCards[i])
+            if recipientIndex == 0 {
+                receivedCardsTracker[0] = allPassedCards[i]
+            }
         }
         
         selectedCardsToPass = []
@@ -433,5 +439,9 @@ class GameViewModel: ObservableObject {
                 wonGame: wonGame
             )
         }
+    }
+    
+    func getReceivedCards(for playerIndex: Int) -> [Card]? {
+        return receivedCardsTracker[playerIndex]
     }
 }
