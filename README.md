@@ -18,3 +18,11 @@ Challenge yourself in the classic card game of Hearts against three intelligent 
 Every round brings new challenges as you pass cards, try to break hearts at the right moment, and strategically play your hand to stick your opponents with points. Can you outsmart the AI and end with the lowest score?
 
 Download now and find out if you can beat Bob, Abby, and Emma!
+
+
+
+## License & Copyright
+
+© 2025 Harold Sultan. This project is **completely free to use, modify, and share** under the [MIT License](https://opensource.org/licenses/MIT). Enjoy the game and have fun!
+
+For questions, suggestions, or feedback, you can reach me at: **harold@example.com**
