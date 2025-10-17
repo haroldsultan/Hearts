@@ -7,6 +7,7 @@ struct GameView: View {
     @State private var showStatsView = false
     @State private var showSettingsView = false
     @State private var showFirstLaunchPrompt = false
+    @State private var showNewGameConfirmation = false
     
     @State private var showRulesView = false
     
@@ -39,13 +40,18 @@ struct GameView: View {
                     VStack {
                         HStack(spacing: 8) {
                             Button("New Game") {
-                                viewModel.startNewGame()
+                                // Don't allow during processing or animations
+                                if !viewModel.isProcessing {
+                                    SoundManager.shared.playButtonClickSound()
+                                    showNewGameConfirmation = true
+                                }
                             }
                             .font(.caption)
                             .padding(8)
-                            .background(Color.blue.opacity(0.8))
+                            .background(Color.blue.opacity(viewModel.isProcessing ? 0.4 : 0.8))
                             .foregroundColor(.white)
                             .cornerRadius(8)
+                            .disabled(viewModel.isProcessing)
                             
                             Button(action: {
                                 SoundManager.shared.playButtonClickSound()
@@ -229,7 +235,7 @@ struct GameView: View {
                     showReceivedHighlight = true
                     
                     // Hide highlight after 3 seconds
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         withAnimation(.easeOut(duration: 0.3)) {
                             showReceivedHighlight = false
                         }
@@ -248,6 +254,33 @@ struct GameView: View {
         }
         .sheet(isPresented: $showRulesView) {
             RulesView()
+        }
+        .alert("Start New Game?", isPresented: $showNewGameConfirmation) {
+            Button("Cancel", role: .cancel) {
+                SoundManager.shared.playButtonClickSound()
+            }
+            Button("New Game", role: .destructive) {
+                SoundManager.shared.playButtonClickSound()
+                
+                // Reset any ongoing states before starting new game
+                viewModel.isPassing = false
+                viewModel.selectedCardsToPass.removeAll()
+                viewModel.playedCards.removeAll()
+                viewModel.isProcessing = false
+                
+                // Clear any animation states
+                showHeartsBreakEffect = false
+                showQueenEffect = false
+                showShootMoonEffect = false
+                flashColor = nil
+                receivedCards.removeAll()
+                showReceivedHighlight = false
+                
+                // Now safe to start new game
+                viewModel.startNewGame()
+            }
+        } message: {
+            Text("This will end your current game. Are you sure?")
         }
         .fullScreenCover(isPresented: $showFirstLaunchPrompt) {
             FirstLaunchNamePrompt(isPresented: $showFirstLaunchPrompt)
@@ -319,6 +352,16 @@ struct GameView: View {
             .padding(.top, 10)
             
             Button("New Game") {
+                SoundManager.shared.playButtonClickSound()
+                
+                // Clear animation states
+                showHeartsBreakEffect = false
+                showQueenEffect = false
+                showShootMoonEffect = false
+                flashColor = nil
+                receivedCards.removeAll()
+                showReceivedHighlight = false
+                
                 viewModel.startNewGame()
             }
             .font(.title2)
@@ -485,17 +528,17 @@ struct GameView: View {
                         let isLegalToPlay = legalCards.contains(card)
                         let isPlayable = viewModel.currentPlayerIndex == 0 && isLegalToPlay
                         let isReceivedCard = receivedCards.contains(card) && showReceivedHighlight
-                        
+
                         CardView(card: card)
                             // Reasonable scaling
                             .scaleEffect(
                                 isSelectedForPassing ? 1.1 :
                                 (isReceivedCard ? 1.05 : 1.0)
                             )
-                            // Bring important cards to front
+                            // Keep cards in natural order, with only slight adjustments
                             .zIndex(
-                                isSelectedForPassing ? 100 + Double(index) :
-                                (isReceivedCard ? 90 + Double(index) : Double(index))
+                                isSelectedForPassing ? Double(index) + 0.5 :  // Small bump, maintains relative order
+                                (isReceivedCard ? Double(index) + 0.3 : Double(index))
                             )
                             // Apply the card-specific overlay
                             .overlay(
@@ -524,7 +567,7 @@ struct GameView: View {
                             )
                             // Apply rotation for fan effect
                             .rotationEffect(.degrees(rotationAngle))
-                            // Apply position
+                            // Apply position - cards still move up when selected
                             .offset(
                                 x: xOffset,
                                 y: yOffset + (isSelectedForPassing ? -25 : (isReceivedCard ? -15 : 0))
