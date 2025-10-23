@@ -1,7 +1,5 @@
 # Hearts
 
-### Beat Bob, Abby & Emma
-
 Challenge yourself in the classic card game of Hearts against three intelligent AI opponents: Bob, Abby, and Emma! This game offers the perfect blend of strategy, skill, and fun for veterans and new players alike.
 
 ## Features
