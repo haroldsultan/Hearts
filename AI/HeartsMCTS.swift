@@ -356,7 +356,7 @@ class AIPlayingStrategy {
         
         // 6. Select the move with the highest average score (highest score differential)
         guard !moveScores.isEmpty else {
-            return legalMoves.first
+            return legalMoves.randomElement() ?? legalMoves.first!
         }
 
         let bestMove = moveScores.max { $0.value < $1.value }!
@@ -485,6 +485,6 @@ class AIPlayingStrategy {
         }
         
         // Fallback, should not be reached if legalMoves is not empty.
-        return legalMoves.first!
+        return legalMoves.randomElement() ?? legalMoves.first!
     }
 }

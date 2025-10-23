@@ -8,6 +8,10 @@ class GameSettings {
     
     private let playerNameKey = "HeartsPlayerName"
     private let difficultyKey = "HeartsDifficultyLevel"
+    private let backgroundMusicEnabledKey = "HeartsBackgroundMusicEnabled"
+    private let soundEffectsEnabledKey = "HeartsSoundEffectsEnabled"
+    private let musicVolumeKey = "HeartsMusicVolume"
+    private let sfxVolumeKey = "HeartsSFXVolume"
     
     private init() {}
     
@@ -20,11 +24,9 @@ class GameSettings {
             let oldName = playerName
             userDefaults.set(newValue, forKey: playerNameKey)
             
-            // If name changed and not first time, migrate stats
             if oldName != newValue && oldName != "You" {
                 migrateStats(from: oldName, to: newValue)
             } else if oldName == "You" && newValue != "You" {
-                // Migrating from default "You" to custom name
                 migrateStats(from: "You", to: newValue)
             }
         }
@@ -37,10 +39,70 @@ class GameSettings {
                let level = DifficultyLevel(rawValue: rawValue) {
                 return level
             }
-            return .medium // Default
+            return .medium
         }
         set {
             userDefaults.set(newValue.rawValue, forKey: difficultyKey)
+        }
+    }
+    
+    // MARK: - Audio Settings
+    var isBackgroundMusicEnabled: Bool {
+        get {
+            // Default to true if not set
+            if userDefaults.object(forKey: backgroundMusicEnabledKey) == nil {
+                return true
+            }
+            return userDefaults.bool(forKey: backgroundMusicEnabledKey)
+        }
+        set {
+            userDefaults.set(newValue, forKey: backgroundMusicEnabledKey)
+            // Apply immediately
+            if newValue {
+                SoundManager.shared.startBackgroundMusic()
+            } else {
+                SoundManager.shared.stopBackgroundMusic()
+            }
+        }
+    }
+    
+    var areSoundEffectsEnabled: Bool {
+        get {
+            if userDefaults.object(forKey: soundEffectsEnabledKey) == nil {
+                return true
+            }
+            return userDefaults.bool(forKey: soundEffectsEnabledKey)
+        }
+        set {
+            userDefaults.set(newValue, forKey: soundEffectsEnabledKey)
+        }
+    }
+    
+    var musicVolume: Float {
+        get {
+            if userDefaults.object(forKey: musicVolumeKey) == nil {
+                return 0.3 // Default 30%
+            }
+            return userDefaults.float(forKey: musicVolumeKey)
+        }
+        set {
+            let clampedValue = max(0.0, min(1.0, newValue))
+            userDefaults.set(clampedValue, forKey: musicVolumeKey)
+            SoundManager.shared.setMusicVolume(clampedValue)
+        }
+    }
+    
+    var sfxVolume: Float {
+        get {
+            if userDefaults.object(forKey: sfxVolumeKey) == nil {
+                return 1.0 // Default 100%
+            }
+            return userDefaults.float(forKey: sfxVolumeKey)
+        }
+        set {
+            let clampedValue = max(0.0, min(1.0, newValue))
+            userDefaults.set(clampedValue, forKey: sfxVolumeKey)
+            SoundManager.shared.setSFXVolume(clampedValue)
         }
     }
     
@@ -58,21 +120,17 @@ class GameSettings {
     
     // MARK: - Stats Migration
     private func migrateStats(from oldName: String, to newName: String) {
-        // Load stats from old name
         guard let oldData = userDefaults.data(forKey: "HeartsPlayerStats_\(oldName)"),
               var stats = try? JSONDecoder().decode(PlayerStats.self, from: oldData) else {
             return
         }
         
-        // Update the player name in the stats
         stats.playerName = newName
         
-        // Save under new name
         if let encoded = try? JSONEncoder().encode(stats) {
             userDefaults.set(encoded, forKey: "HeartsPlayerStats_\(newName)")
         }
         
-        // Remove old stats
         userDefaults.removeObject(forKey: "HeartsPlayerStats_\(oldName)")
     }
 }

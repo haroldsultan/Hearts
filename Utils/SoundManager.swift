@@ -6,10 +6,14 @@ class SoundManager {
     
     private var soundPlayers: [String: AVAudioPlayer] = [:]
     private var musicPlayer: AVAudioPlayer?
+    private var currentSFXVolume: Float = 1.0
     
     private init() {
         configureAudioSession()
         preloadSounds()
+        
+        // Load saved volumes
+        currentSFXVolume = GameSettings.shared.sfxVolume
     }
     
     private func configureAudioSession() {
@@ -50,6 +54,7 @@ class SoundManager {
                 do {
                     let player = try AVAudioPlayer(contentsOf: url)
                     player.prepareToPlay()
+                    player.volume = currentSFXVolume
                     soundPlayers[soundName] = player
                     return
                 } catch {
@@ -62,12 +67,28 @@ class SoundManager {
     
     // MARK: - Play Sounds
     private func playSound(_ soundName: String) {
+        guard GameSettings.shared.areSoundEffectsEnabled else { return }
+        
         guard let player = soundPlayers[soundName] else {
             print("⚠️ No preloaded player for sound:", soundName)
             return
         }
         player.currentTime = 0
+        player.volume = currentSFXVolume
         player.play()
+    }
+    
+    // MARK: - Volume Control
+    func setMusicVolume(_ volume: Float) {
+        musicPlayer?.volume = volume
+    }
+    
+    func setSFXVolume(_ volume: Float) {
+        currentSFXVolume = volume
+        // Update all preloaded sound players
+        for (_, player) in soundPlayers {
+            player.volume = volume
+        }
     }
     
     // MARK: - Specific Game Sounds
@@ -84,6 +105,7 @@ class SoundManager {
     
     // MARK: - Background Music
     func startBackgroundMusic() {
+        guard GameSettings.shared.isBackgroundMusicEnabled else { return }
         guard musicPlayer == nil || musicPlayer?.isPlaying == false else { return }
         
         let musicFiles = ["background_music", "game_music", "hearts_music"]
@@ -97,7 +119,7 @@ class SoundManager {
                     do {
                         musicPlayer = try AVAudioPlayer(contentsOf: url)
                         musicPlayer?.numberOfLoops = -1
-                        musicPlayer?.volume = 0.3
+                        musicPlayer?.volume = GameSettings.shared.musicVolume
                         musicPlayer?.play()
                         print("🎵 Background music started.")
                         return

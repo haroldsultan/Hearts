@@ -164,9 +164,6 @@ class GameViewModel: ObservableObject {
         }
         gameStarted = true
         
-        // Start background music
-        SoundManager.shared.startBackgroundMusic()
-        
         if !players[currentPlayerIndex].isHuman {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 self.playAITurn()

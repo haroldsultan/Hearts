@@ -6,6 +6,12 @@ struct SettingsView: View {
     @State private var selectedDifficulty: DifficultyLevel
     @State private var showNameAlert = false
     
+    // Audio settings
+    @State private var isMusicOn = GameSettings.shared.isBackgroundMusicEnabled
+    @State private var areSFXOn = GameSettings.shared.areSoundEffectsEnabled
+    @State private var musicVolume = GameSettings.shared.musicVolume
+    @State private var sfxVolume = GameSettings.shared.sfxVolume
+    
     init() {
         _playerName = State(initialValue: GameSettings.shared.playerName)
         _selectedDifficulty = State(initialValue: GameSettings.shared.difficulty)
@@ -45,6 +51,53 @@ struct SettingsView: View {
                     .pickerStyle(InlinePickerStyle())
                     .onChange(of: selectedDifficulty) {
                         GameSettings.shared.difficulty = selectedDifficulty
+                    }
+                }
+                
+                // Audio Section
+                Section(header: Text("Audio")) {
+                    // Music Toggle
+                    Toggle("Background Music", isOn: $isMusicOn)
+                        .onChange(of: isMusicOn) { newValue in
+                            GameSettings.shared.isBackgroundMusicEnabled = newValue
+                        }
+                    
+                    // Music Volume Slider
+                    if isMusicOn {
+                        HStack {
+                            Text("Volume")
+                                .foregroundColor(.secondary)
+                            Slider(value: $musicVolume, in: 0...1, step: 0.1)
+                                .onChange(of: musicVolume) { newValue in
+                                    GameSettings.shared.musicVolume = newValue
+                                }
+                            Text("\(Int(musicVolume * 100))%")
+                                .foregroundColor(.secondary)
+                                .frame(width: 45, alignment: .trailing)
+                        }
+                    }
+                    
+                    // Sound Effects Toggle
+                    Toggle("Sound Effects", isOn: $areSFXOn)
+                        .onChange(of: areSFXOn) { newValue in
+                            GameSettings.shared.areSoundEffectsEnabled = newValue
+                        }
+                    
+                    // SFX Volume Slider
+                    if areSFXOn {
+                        HStack {
+                            Text("Volume")
+                                .foregroundColor(.secondary)
+                            Slider(value: $sfxVolume, in: 0...1, step: 0.1)
+                                .onChange(of: sfxVolume) { newValue in
+                                    GameSettings.shared.sfxVolume = newValue
+                                    // Play test sound for feedback
+                                    SoundManager.shared.playCardSound()
+                                }
+                            Text("\(Int(sfxVolume * 100))%")
+                                .foregroundColor(.secondary)
+                                .frame(width: 45, alignment: .trailing)
+                        }
                     }
                 }
                 
