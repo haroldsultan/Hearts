@@ -163,6 +163,7 @@ class GameViewModel: ObservableObject {
             currentPlayerIndex = 0
         }
         gameStarted = true
+        isProcessing = false
         
         if !players[currentPlayerIndex].isHuman {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
